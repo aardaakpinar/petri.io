@@ -53,12 +53,12 @@ function resizeCanvas() {
 }
 
 function loadHighScore() {
-  const saved = localStorage.getItem("agarHighScore")
+  const saved = localStorage.getItem("highScore")
   if (saved) highScore = Number.parseInt(saved)
 }
 
 function saveHighScore() {
-  localStorage.setItem("agarHighScore", highScore.toString())
+  localStorage.setItem("highScore", highScore.toString())
 }
 
 function updateMenuHighScore() {
@@ -478,9 +478,6 @@ function update() {
 function updateUI() {
   document.getElementById("score").textContent = score
   document.getElementById("highScore").textContent = highScore
-
-  const maxPower = cells.filter((c) => c.isPlayer).reduce((max, c) => Math.max(max, c.splitCount), 0)
-  document.getElementById("powerLevel").textContent = `×${maxPower}`
 }
 
 function endGame() {

@@ -3,16 +3,16 @@ const ctx = canvas.getContext("2d")
 
 const COLORS = ["#3498db", "#2ecc71", "#f1c40f", "#e67e22", "#9b59b6", "#e91e63", "#1abc9c", "#16a085"]
 const INITIAL_CELLS = 80
-const WORLD_SIZE = 3000
+const WORLD_SIZE = 5000
 const GRID_SIZE = 50
 const SLOWDOWN_RATE = 0.015
 const MIN_SPEED_MULTIPLIER = 0.2
 const SPLIT_DECAY_TIME = 5000
 
-const AI_VISION_RADIUS = 400 // How far AI can see
-const AI_DECISION_INTERVAL = 300 // How often AI makes decisions (ms)
-const AI_FLEE_DISTANCE = 350 // Start fleeing when danger is this close
-const AI_CHASE_DISTANCE = 450 // Start chasing when prey is this close
+const AI_VISION_RADIUS = 400
+const AI_DECISION_INTERVAL = 300 
+const AI_FLEE_DISTANCE = 350
+const AI_CHASE_DISTANCE = 450
 
 let gameState = "menu"
 let score = 0
@@ -92,11 +92,12 @@ function startGame() {
   for (let i = 0; i < INITIAL_CELLS; i++) {
     const size = 5 + Math.random() * 25
     const isAI = size > 15 // Larger cells are AI-controlled
-
+    const pos = randomPointInCircle(WORLD_SIZE / 2)
+    
     cells.push({
       id: cellIdCounter++,
-      x: (Math.random() - 0.5) * WORLD_SIZE,
-      y: (Math.random() - 0.5) * WORLD_SIZE,
+      x: pos.x,
+      y: pos.y,
       size: size,
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
       vx: (Math.random() - 0.5) * 0.8,
@@ -306,10 +307,12 @@ function updateAI(cell) {
 
 function spawnFood() {
   if (Math.random() < 0.03 && cells.length < INITIAL_CELLS + 50) {
+    const pos = randomPointInCircle(WORLD_SIZE / 2)
+
     cells.push({
       id: cellIdCounter++,
-      x: (Math.random() - 0.5) * WORLD_SIZE,
-      y: (Math.random() - 0.5) * WORLD_SIZE,
+      x: pos.x,
+      y: pos.y,
       size: 5 + Math.random() * 10,
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
       vx: 0,
@@ -380,8 +383,14 @@ function update() {
     p.y += p.vy
 
     const limit = WORLD_SIZE / 2
-    p.x = Math.max(-limit, Math.min(limit, p.x))
-    p.y = Math.max(-limit, Math.min(limit, p.y))
+    const dist = Math.sqrt(p.x * p.x + p.y * p.y)
+    if (dist > limit) {
+      p.x = (p.x / dist) * limit
+      p.y = (p.y / dist) * limit
+      p.vx *= -0.4
+      p.vy *= -0.4
+    }
+
 
     if (p.splitCooldown > 0) p.splitCooldown--
   })
@@ -423,8 +432,13 @@ function update() {
       cell.vy *= 0.97
 
       const limit = WORLD_SIZE / 2
-      if (Math.abs(cell.x) > limit) cell.vx *= -0.5
-      if (Math.abs(cell.y) > limit) cell.vy *= -0.5
+      const dist = Math.sqrt(cell.x * cell.x + cell.y * cell.y)
+      if (dist > limit) {
+        cell.x = (cell.x / dist) * limit
+        cell.y = (cell.y / dist) * limit
+        cell.vx *= -0.5
+        cell.vy *= -0.5
+      }
     }
   })
 
@@ -501,35 +515,53 @@ function endGame() {
   document.getElementById("gameOver").classList.remove("hidden")
 }
 
+function randomPointInCircle(radius) {
+  const t = Math.random()
+  const r = Math.sqrt(t) * radius
+  const theta = Math.random() * Math.PI * 2
+  return { x: Math.cos(theta) * r, y: Math.sin(theta) * r }
+}
+
 function draw() {
+  // clear
   ctx.fillStyle = "#f8f9fa"
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  ctx.save()
-  ctx.translate(canvas.width / 2, canvas.height / 2)
-
+  // Kamera / world offset
   const camX = player ? player.x : 0
   const camY = player ? player.y : 0
 
-  // Draw grid
+  // Tüm çizimleri bir translate blokunda yap — tek save/restore
+  ctx.save()
+  ctx.translate(canvas.width / 2, canvas.height / 2)
+
+  // --- Dünya sınırı (yuvarlak, gri border) ---
+  ctx.beginPath()
+  // After translate, world origin is at (-camX, -camY)
+  ctx.arc(-camX, -camY, WORLD_SIZE / 2, 0, Math.PI * 2)
+  ctx.strokeStyle = "#b0b0b0"
+  ctx.lineWidth = 8
+  ctx.stroke()
+
+  // --- Grid ---
   ctx.strokeStyle = "#e0e0e0"
   ctx.lineWidth = 1
 
-  for (let x = -WORLD_SIZE; x < WORLD_SIZE; x += GRID_SIZE) {
+  for (let x = -WORLD_SIZE; x <= WORLD_SIZE; x += GRID_SIZE) {
     ctx.beginPath()
     ctx.moveTo(x - camX, -canvas.height)
     ctx.lineTo(x - camX, canvas.height)
     ctx.stroke()
   }
 
-  for (let y = -WORLD_SIZE; y < WORLD_SIZE; y += GRID_SIZE) {
+  for (let y = -WORLD_SIZE; y <= WORLD_SIZE; y += GRID_SIZE) {
     ctx.beginPath()
     ctx.moveTo(-canvas.width, y - camY)
     ctx.lineTo(canvas.width, y - camY)
     ctx.stroke()
   }
 
-  // Draw cells
+  // --- Cells ---
   const sortedCells = [...cells].sort((a, b) => a.size - b.size)
 
   sortedCells.forEach((cell) => {
@@ -546,8 +578,11 @@ function draw() {
     ctx.arc(screenX, screenY, cell.size, 0, Math.PI * 2)
     ctx.fill()
 
+    // Outline
+    ctx.shadowColor = "transparent"
+    ctx.beginPath()
+    ctx.arc(screenX, screenY, cell.size, 0, Math.PI * 2)
     if (cell.isPlayer) {
-      ctx.shadowColor = "transparent"
       ctx.strokeStyle = "#ffffff"
       ctx.lineWidth = 3
       ctx.stroke()
@@ -561,8 +596,7 @@ function draw() {
       ctx.stroke()
     }
 
-    ctx.shadowColor = "transparent"
-
+    // Split count text
     if (cell.splitCount > 0) {
       ctx.fillStyle = cell.isPlayer ? "#ffffff" : "#000000"
       ctx.font = `bold ${Math.max(12, cell.size * 0.4)}px sans-serif`
@@ -572,8 +606,10 @@ function draw() {
     }
   })
 
+  // Tek restore — save ile eşleşir
   ctx.restore()
 }
+
 
 function gameLoop() {
   update()

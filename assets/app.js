@@ -42,6 +42,7 @@ function init() {
 
     document.getElementById("startBtn").addEventListener("click", startGame);
     document.getElementById("restartBtn").addEventListener("click", restartGame);
+    document.getElementById("stopBtn").style.display = "none";
 
     window.addEventListener("resize", resizeCanvas);
     window.addEventListener("keydown", handleKeyDown);
@@ -167,7 +168,6 @@ function handleKeyUp(e) {
 
 function splitPlayer() {
     const players = cells.filter((c) => c.isPlayer);
-    const toAdd = [];
     const now = Date.now();
 
     players.forEach((p) => {
@@ -185,36 +185,22 @@ function splitPlayer() {
             }
 
             const angle = Math.atan2(dy, dx);
-            const speed = 10;
-            const newSplitCount = p.splitCount + 1;
 
-            const newPiece = {
-                id: cellIdCounter++,
-                x: p.x,
-                y: p.y,
-                size: p.size * 0.5,
-                color: p.color,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                isPlayer: true,
-                splitCooldown: 150,
-                splitCount: newSplitCount,
-                lastSplitTime: now,
-            };
+            p.size *= 0.9; // eskiden 0.7 idi, daha az küçüldü
 
-            p.size *= 0.7;
-            p.vx -= Math.cos(angle) * 3;
-            p.vy -= Math.sin(angle) * 3;
+            const boost = 5; // ekstra hız
+            p.vx += Math.cos(angle) * boost;
+            p.vy += Math.sin(angle) * boost;
+
             p.splitCooldown = 150;
-            p.splitCount = newSplitCount;
+            p.splitCount += 1;
             p.lastSplitTime = now;
-
-            toAdd.push(newPiece);
+        } else {
+            p.splitCooldown = Math.max(p.splitCooldown - 1, 0);
         }
     });
-
-    cells.push(...toAdd);
 }
+
 
 function updateAI(cell) {
     const now = Date.now();
@@ -493,14 +479,13 @@ function update() {
 
     // --- Oyun bitirme kontrolü ---
     const aiCells = cells.filter(c => c.isAI)
-    const totalArea = cells.reduce((sum, c) => sum + Math.PI * c.size * c.size, 0)
-    const worldArea = Math.PI * (WORLD_SIZE / 2) ** 2
 
-    // Koşullar:
-    // 1. Tüm AI'lar yenilmiş
-    // 2. Toplam hücre alanı dünya alanına %90 ve üzeri ulaşmış
-    if (aiCells.length === 0 || totalArea >= worldArea * 0.9) {
-        endGame()
+    if (aiCells.length === 0) {
+        if (document.getElementById("stopBtn").style.display === "none") {
+            document.getElementById("stopBtn").style.display = "block";
+        }
+    } else {
+        document.getElementById("stopBtn").style.display = "none"; // gerekirse gizle
     }
 
     updateUI();
@@ -668,43 +653,53 @@ const joystickKnob = document.getElementById("joystickKnob");
 const splitBtn = document.getElementById("splitBtn");
 
 let joystickActive = false;
-let joystickStart = { x: 0, y: 0 };
-let joystickDelta = { x: 0, y: 0 };
+const DEAD_ZONE = 15;
+const MAX_JOYSTICK_DISTANCE = 50;
+const MOVEMENT_THRESHOLD = 20;
 
 function handleTouchStart(e) {
-  const touch = e.touches[0];
   joystickActive = true;
-  joystickStart = { x: touch.clientX, y: touch.clientY };
+  e.preventDefault();
 }
 
 function handleTouchMove(e) {
   if (!joystickActive) return;
+  
   const touch = e.touches[0];
-  joystickDelta = {
-    x: touch.clientX - joystickStart.x,
-    y: touch.clientY - joystickStart.y,
-  };
-
-  const maxDistance = 50;
-  const distance = Math.sqrt(joystickDelta.x ** 2 + joystickDelta.y ** 2);
-  const angle = Math.atan2(joystickDelta.y, joystickDelta.x);
-
-  const limitedDistance = Math.min(maxDistance, distance);
+  
+  const rect = joystickBase.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  
+  const deltaX = touch.clientX - centerX;
+  const deltaY = touch.clientY - centerY;
+  
+  const distance = Math.sqrt(deltaX ** 2 + deltaY ** 2);
+  
+  if (distance < DEAD_ZONE) {
+    joystickKnob.style.transform = `translate(0px, 0px)`;
+    keys.w = keys.a = keys.s = keys.d = false;
+    e.preventDefault();
+    return;
+  }
+  
+  const angle = Math.atan2(deltaY, deltaX);
+  const limitedDistance = Math.min(MAX_JOYSTICK_DISTANCE, distance);
+  
+  // Knob pozisyonunu güncelle
   joystickKnob.style.transform = `translate(${Math.cos(angle) * limitedDistance}px, ${Math.sin(angle) * limitedDistance}px)`;
 
-  // Keys update
-  keys.w = joystickDelta.y < -10;
-  keys.s = joystickDelta.y > 10;
-  keys.a = joystickDelta.x < -10;
-  keys.d = joystickDelta.x > 10;
+  keys.w = deltaY < -MOVEMENT_THRESHOLD;
+  keys.s = deltaY > MOVEMENT_THRESHOLD;
+  keys.a = deltaX < -MOVEMENT_THRESHOLD;
+  keys.d = deltaX > MOVEMENT_THRESHOLD;
 
   e.preventDefault();
 }
 
 function handleTouchEnd() {
   joystickActive = false;
-  joystickDelta = { x: 0, y: 0 };
-  joystickKnob.style.transform = `translate(0px,0px)`;
+  joystickKnob.style.transform = `translate(0px, 0px)`;
   keys.w = keys.a = keys.s = keys.d = false;
 }
 

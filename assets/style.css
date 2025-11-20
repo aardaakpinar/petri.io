@@ -201,6 +201,24 @@ body {
   transform: translateY(0);
 }
 
+.btn-danger {
+  position: absolute;
+  z-index: 9999;
+  background: #f63b3b;
+  color: white;
+  pointer-events: auto;
+}
+
+.btn-danger:hover {
+  background: #eb2525;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(246, 59, 59, 0.4);
+}
+
+.btn-danger:active {
+  transform: translateY(0);
+}
+
 .hidden {
   display: none !important;
 }

@@ -661,5 +661,64 @@ function gameLoop() {
     animationId = requestAnimationFrame(gameLoop);
 }
 
+
+// JS: Joystick ve Split button kontrol
+const joystickBase = document.getElementById("joystickBase");
+const joystickKnob = document.getElementById("joystickKnob");
+const splitBtn = document.getElementById("splitBtn");
+
+let joystickActive = false;
+let joystickStart = { x: 0, y: 0 };
+let joystickDelta = { x: 0, y: 0 };
+
+function handleTouchStart(e) {
+  const touch = e.touches[0];
+  joystickActive = true;
+  joystickStart = { x: touch.clientX, y: touch.clientY };
+}
+
+function handleTouchMove(e) {
+  if (!joystickActive) return;
+  const touch = e.touches[0];
+  joystickDelta = {
+    x: touch.clientX - joystickStart.x,
+    y: touch.clientY - joystickStart.y,
+  };
+
+  const maxDistance = 50;
+  const distance = Math.sqrt(joystickDelta.x ** 2 + joystickDelta.y ** 2);
+  const angle = Math.atan2(joystickDelta.y, joystickDelta.x);
+
+  const limitedDistance = Math.min(maxDistance, distance);
+  joystickKnob.style.transform = `translate(${Math.cos(angle) * limitedDistance}px, ${Math.sin(angle) * limitedDistance}px)`;
+
+  // Keys update
+  keys.w = joystickDelta.y < -10;
+  keys.s = joystickDelta.y > 10;
+  keys.a = joystickDelta.x < -10;
+  keys.d = joystickDelta.x > 10;
+
+  e.preventDefault();
+}
+
+function handleTouchEnd() {
+  joystickActive = false;
+  joystickDelta = { x: 0, y: 0 };
+  joystickKnob.style.transform = `translate(0px,0px)`;
+  keys.w = keys.a = keys.s = keys.d = false;
+}
+
+// Joystick events
+joystickBase.addEventListener("touchstart", handleTouchStart);
+joystickBase.addEventListener("touchmove", handleTouchMove);
+joystickBase.addEventListener("touchend", handleTouchEnd);
+joystickBase.addEventListener("touchcancel", handleTouchEnd);
+
+// Split button
+splitBtn.addEventListener("touchstart", () => {
+  splitPlayer();
+});
+
+
 // Start
 init();
